@@ -1,0 +1,115 @@
+package cmd
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/m10x/adspraygen/pkg"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+)
+
+var (
+	version = "v1.0.0"
+	rootCmd = &cobra.Command{
+		Version: version,
+		Use:     "adspraygen",
+		Short:   getShortDescription(),
+		Long:    fmt.Sprintf("%s\nADSprayGen %s\n\n%s\n%s", getLogo(), version, getShortDescription(), getMaskOptions()),
+		Example: "adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{givenName#Reverse}{MonthGerman}{YYYY}!'",
+		Run: func(cmd *cobra.Command, args []string) {
+			err := cmd.ParseFlags(args)
+			if err != nil {
+				pkg.PrintFatal(err.Error())
+			}
+
+			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, mask)
+		},
+	}
+
+	ldapServer               string
+	ldapPort                 int
+	ldapS, ntlm              bool
+	username, password, hash string
+	domain, ou, filter       string
+	mask                     string
+	outputFile               string
+)
+
+func init() {
+	rootCmd.Flags().StringVarP(&ldapServer, "server", "s", "", "LDAP server address")
+	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", 389, "LDAP server port")
+	rootCmd.Flags().BoolVar(&ldapS, "ldaps", false, "LDAP over SSL/TLS")
+	rootCmd.Flags().BoolVar(&ntlm, "ntlm", false, "Use NTLM authentication instead of basic LDAP authentication")
+	rootCmd.Flags().StringVarP(&username, "username", "u", "", "Username. If no username is specified, an anonymous bind is attempted")
+	rootCmd.Flags().StringVarP(&password, "password", "p", "", "Password. If no password is specified, an unauthenticated bind is attempted")
+	rootCmd.Flags().StringVar(&hash, "hash", "", "NTLM Hash (Pass-the-Hash)")
+	rootCmd.Flags().StringVarP(&domain, "domain", "d", "", "FQDN")
+	rootCmd.Flags().StringVarP(&filter, "filter", "f", "(&(objectClass=User)(objectCategory=Person))", "LDAP Query Filter")
+	rootCmd.Flags().StringVar(&ou, "ou", "", "Organizational Unit. E.g.: OU=Users,OU=GDATA")
+	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file. Appends an incremental number if the file already exists")
+	rootCmd.Flags().StringVarP(&mask, "mask", "m", "", "Password mask. E.g.: Foobar{givenName#Reverse}{MonthGerman}{YYYY}!")
+	rootCmd.MarkFlagRequired("server")
+	rootCmd.MarkFlagRequired("domain")
+	rootCmd.MarkFlagRequired("mask")
+}
+
+func getShortDescription() string {
+	return "Query LDAP server to retrieve user information and generate a pw spraying list"
+}
+
+func getMaskOptions() string {
+	return `
+Mask Placeholders
+- {cn} : Full Name
+- {givenName} : First Name
+- {sn} : Last Name
+- {sAMAccountName} : Logon Name (Pre Windows 2000)
+- {rPrincipalName} : Logon Name
+- {description} : Description
+- {info} : Notes
+- {department} : Department
+- {I} : City
+- {postcalCode} : Postal Code
+- Last password change
+    - {YYYY} : e.g. 2024
+    - {YY} : e.g. 24
+    - {MM} : e.g. 01
+    - {M} : e.g. 1
+    - {SeasonGerman} : e.g. Herbst
+    - {SeasonAmerican} : e.g. Fall
+    - {SeasonBritish} : e.g. Autumn
+    - {MonthGerman} : e.g. Januar
+    - {MonthEnglish} : e.g. January
+
+Mask Placeholder Modifiers
+- #Reverse : Reverse the string
+- #LeetBasic : Subsitute e:3, o:0, i:1, a:4
+- #LeetBasicPlus : Subsitute e:3, o:0, i:1, a:@, t:7`
+}
+
+func getLogo() (logo string) {
+	// source: https://patorjk.com/software/taag/#p=display&v=3&f=Bloody&t=ADSprayGen
+	logo = `
+ ▄▄▄      ▓█████▄   ██████  ██▓███   ██▀███   ▄▄▄     ▓██   ██▓  ▄████ ▓█████  ███▄    █ 
+▒████▄    ▒██▀ ██▌▒██    ▒ ▓██░  ██▒▓██ ▒ ██▒▒████▄    ▒██  ██▒ ██▒ ▀█▒▓█   ▀  ██ ▀█   █ 
+▒██  ▀█▄  ░██   █▌░ ▓██▄   ▓██░ ██▓▒▓██ ░▄█ ▒▒██  ▀█▄   ▒██ ██░▒██░▄▄▄░▒███   ▓██  ▀█ ██▒
+░██▄▄▄▄██ ░▓█▄   ▌  ▒   ██▒▒██▄█▓▒ ▒▒██▀▀█▄  ░██▄▄▄▄██  ░ ▐██▓░░▓█  ██▓▒▓█  ▄ ▓██▒  ▐▌██▒
+ ▓█   ▓██▒░▒████▓ ▒██████▒▒▒██▒ ░  ░░██▓ ▒██▒ ▓█   ▓██▒ ░ ██▒▓░░▒▓███▀▒░▒████▒▒██░   ▓██░
+ ▒▒   ▓▒█░ ▒▒▓  ▒ ▒ ▒▓▒ ▒ ░▒▓▒░ ░  ░░ ▒▓ ░▒▓░ ▒▒   ▓▒█░  ██▒▒▒  ░▒   ▒ ░░ ▒░ ░░ ▒░   ▒ ▒ 
+  ▒   ▒▒ ░ ░ ▒  ▒ ░ ░▒  ░ ░░▒ ░       ░▒ ░ ▒░  ▒   ▒▒ ░▓██ ░▒░   ░   ░  ░ ░  ░░ ░░   ░ ▒░
+  ░   ▒    ░ ░  ░ ░  ░  ░  ░░         ░░   ░   ░   ▒   ▒ ▒ ░░  ░ ░   ░    ░      ░   ░ ░ 
+      ░  ░   ░          ░              ░           ░  ░░ ░           ░    ░  ░         ░ 
+           ░                                           ░ ░                               `
+
+	logo = strings.ReplaceAll(logo, "░", color.MagentaString("░"))
+	logo = strings.ReplaceAll(logo, "▒", color.HiMagentaString("▒"))
+	return
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		pkg.PrintFatal(err.Error())
+	}
+}
