@@ -5,8 +5,6 @@
 # ADSprayGen
 
 ADSprayGen a command-line utility written in Go that leverages LDAP (Lightweight Directory Access Protocol) to retrieve user attributes. These attributes can then be used to generate possible passwords for the users. A mask is required to generate the passwords, which can contain user attribute placeholders and modifiers for them.
-- [Features](#features)
-- [Supported Template Engines](#supported-template-engines)
 - [Installation](#installation)
     - [Option 1: Prebuilt Binary](#option-1-prebuilt-binary)
     - [Option 2: Install Using Go](#option-2-install-using-go)
