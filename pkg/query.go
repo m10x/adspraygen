@@ -12,7 +12,7 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
-func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, mask string) {
+func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, mask string, pageSize int) {
 	Print("Establishing LDAP Connection\n", Cyan)
 	protocol := "ldap"
 	if ldapS {
@@ -104,7 +104,7 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 	fmt.Printf("searchBase: %s\nfilter: %s\nattributes: %v\n", searchBase, ldapFilter, attributes)
 
 	// Perform the search
-	searchResult, err := conn.Search(searchRequest)
+	searchResult, err := conn.SearchWithPaging(searchRequest, uint32(pageSize))
 	if err != nil {
 		PrintFatal(err.Error())
 	}

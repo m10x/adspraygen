@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "v1.0.0"
+	version = "v1.0.1"
 	rootCmd = &cobra.Command{
 		Version: version,
 		Use:     "adspraygen",
@@ -24,12 +24,12 @@ var (
 				pkg.PrintFatal(err.Error())
 			}
 
-			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, mask)
+			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, mask, pageSize)
 		},
 	}
 
 	ldapServer               string
-	ldapPort                 int
+	ldapPort, pageSize       int
 	ldapS, ntlm              bool
 	username, password, hash string
 	domain, ou, filter       string
@@ -40,6 +40,7 @@ var (
 func init() {
 	rootCmd.Flags().StringVarP(&ldapServer, "server", "s", "", "LDAP server address")
 	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", 389, "LDAP server port")
+	rootCmd.Flags().IntVar(&pageSize, "pageSize", 500, "Page size")
 	rootCmd.Flags().BoolVar(&ldapS, "ldaps", false, "LDAP over SSL/TLS")
 	rootCmd.Flags().BoolVar(&ntlm, "ntlm", false, "Use NTLM authentication instead of basic LDAP authentication")
 	rootCmd.Flags().StringVarP(&username, "username", "u", "", "Username. If no username is specified, an anonymous bind is attempted")
