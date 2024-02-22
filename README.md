@@ -5,8 +5,6 @@
 # ADSprayGen
 
 ADSprayGen a command-line utility written in Go that leverages LDAP (Lightweight Directory Access Protocol) to retrieve user attributes. These attributes can then be used to generate possible passwords for the users. A mask is required to generate the passwords, which can contain user attribute placeholders and modifiers for them.
-- [Features](#features)
-- [Supported Template Engines](#supported-template-engines)
 - [Installation](#installation)
     - [Option 1: Prebuilt Binary](#option-1-prebuilt-binary)
     - [Option 2: Install Using Go](#option-2-install-using-go)
@@ -61,6 +59,6 @@ Example: `adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{g
 - handling of unknown mask attribute and unknown mask transformator
 
 ## Common LDAP Errors
-`LDAP Result Code 1 "Operations Error": 000004DC: LdapErr: DSID-0C090A5C, comment: In order to perform this operation a successful bind must be completed on the connection.`: Anonymous/Unauthenticated bind is not possible. Specify a password or NTLM hash.
-`LDAP Result Code 49 "Invalid Credentials": 80090308: LdapErr: DSID-0C090439, comment: AcceptSecurityContext error` - The specified credentials are invalid
-`LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error` - Unauthenticated NTLM bind is not possible or specified credentials are not valid.
+- `LDAP Result Code 1 "Operations Error": 000004DC: LdapErr: DSID-0C090A5C, comment: In order to perform this operation a successful bind must be completed on the connection.` - Anonymous/Unauthenticated bind is not possible. Specify a password or NTLM hash.
+- `LDAP Result Code 49 "Invalid Credentials": 80090308: LdapErr: DSID-0C090439, comment: AcceptSecurityContext error` - The specified credentials are invalid
+- `LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error` - Unauthenticated NTLM bind is not possible or specified credentials are not valid.
