@@ -58,7 +58,7 @@ Example: `adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{g
 - import dumped LDAP user attributes instead of querying the LDAP server
 - handling of unknown mask attribute and unknown mask transformator
 - netexec format + kerbrute format
-- dump pw policy
+- dump pw policy / fine grained policy
 - dump Hostnames
 - handling of givenName with multiple names
 
