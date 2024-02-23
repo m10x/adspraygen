@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "v1.0.1"
+	version = "v1.0.2"
 	rootCmd = &cobra.Command{
 		Version: version,
 		Use:     "adspraygen",
@@ -24,7 +24,11 @@ var (
 				pkg.PrintFatal(err.Error())
 			}
 
-			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, mask, pageSize)
+			if strings.ToLower(outputFormat) != "kerbrute" && strings.ToLower(outputFormat) != "netexec" {
+				pkg.PrintFatal("Unknown outputFormat!")
+			}
+
+			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, outputFormat, mask, pageSize, silent)
 		},
 	}
 
@@ -35,6 +39,8 @@ var (
 	domain, ou, filter       string
 	mask                     string
 	outputFile               string
+	outputFormat             string
+	silent                   bool
 )
 
 func init() {
@@ -50,7 +56,9 @@ func init() {
 	rootCmd.Flags().StringVarP(&filter, "filter", "f", "(&(objectClass=User)(objectCategory=Person))", "LDAP Query Filter")
 	rootCmd.Flags().StringVar(&ou, "ou", "", "Organizational Unit. E.g.: OU=Users,OU=GDATA")
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file. Appends an incremental number if the file already exists")
+	rootCmd.Flags().StringVar(&outputFormat, "outputformat", "kerbrute", "Output format. kerbrute creates a single file with user:pass, netexec creates two files, one with user and one with pass")
 	rootCmd.Flags().StringVarP(&mask, "mask", "m", "", "Password mask. E.g.: Foobar{givenName#Reverse}{MonthGerman}{YYYY}!")
+	rootCmd.Flags().BoolVar(&silent, "silent", false, "Do not print the user attributes and the user:pass combos")
 	rootCmd.MarkFlagRequired("server")
 	rootCmd.MarkFlagRequired("domain")
 	rootCmd.MarkFlagRequired("mask")

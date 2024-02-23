@@ -57,7 +57,10 @@ Example: `adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{g
 - dump LDAP user attributes
 - import dumped LDAP user attributes instead of querying the LDAP server
 - handling of unknown mask attribute and unknown mask transformator
-- handling of givenName witl multiple names
+- netexec format + kerbrute format
+- dump pw policy
+- dump Hostnames
+- handling of givenName with multiple names
 
 ## Common LDAP Errors
 - `LDAP Result Code 1 "Operations Error": 000004DC: LdapErr: DSID-0C090A5C, comment: In order to perform this operation a successful bind must be completed on the connection.` - Anonymous/Unauthenticated bind is not possible. Specify a password or NTLM hash.

@@ -12,7 +12,13 @@ import (
 	"github.com/go-ldap/ldap/v3"
 )
 
-func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, mask string, pageSize int) {
+const (
+	COMBO = 0
+	USER  = 1
+	PASS  = 2
+)
+
+func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, outputFormat, mask string, pageSize int, silent bool) {
 	Print("Establishing LDAP Connection\n", Cyan)
 	protocol := "ldap"
 	if ldapS {
@@ -113,46 +119,73 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 	Print(fmt.Sprintf("Found %d user accounts\n", len(searchResult.Entries)), Green)
 
 	// Print out the results
-	fmt.Println()
-	Print("User attributes\n", Cyan)
-	for _, entry := range searchResult.Entries {
-		for _, attribute := range attributes {
-			value := entry.GetAttributeValue(attribute)
-			if attribute == "pwdLastSet" {
-				value = convertTime(value)
-			}
-			fmt.Printf("%s: %s\n", attribute, value)
-		}
+	if !silent {
 		fmt.Println()
+		Print("User attributes\n", Cyan)
+		for _, entry := range searchResult.Entries {
+			for _, attribute := range attributes {
+				value := entry.GetAttributeValue(attribute)
+				if attribute == "pwdLastSet" {
+					value = convertTime(value)
+				}
+				fmt.Printf("%s: %s\n", attribute, value)
+			}
+			fmt.Println()
+		}
 	}
 
 	var file *os.File
+	var file2 *os.File
 	var path string
+	var path2 string
 	// Create output file
 	if outputFile != "" {
 		fmt.Println()
-		Print("Creating output file\n", Cyan)
-		file, path = createFile(outputFile)
+		Print("Creating output file(s)\n", Cyan)
+		if strings.ToLower(outputFormat) == "kerbrute" {
+			file, path = createFile(outputFile, COMBO)
+		} else if strings.ToLower(outputFormat) == "netexec" {
+			file, path = createFile(outputFile, USER)
+			file2, path2 = createFile(outputFile, PASS)
+		}
 	}
 
 	// Generate the Passwords
-	fmt.Println()
-	Print("Pw spray list\n", Cyan)
+	if !silent {
+		fmt.Println()
+		Print("Pw spray combos\n", Cyan)
+	}
 	for _, entry := range searchResult.Entries {
 		username := entry.GetAttributeValue("sAMAccountName")
 		password := generatePW(entry, mask)
 		combo := fmt.Sprintf("%s:%s", username, password)
-		fmt.Println(combo)
-		if file != nil {
+		if !silent {
+			fmt.Println(combo)
+		}
+		if strings.ToLower(outputFormat) == "kerbrute" && file != nil {
 			appendToFile(file, combo)
+		} else if strings.ToLower(outputFormat) == "netexec" && file != nil && file2 != nil {
+			appendToFile(file, username)
+			appendToFile(file2, password)
 		}
 	}
 
 	// Close file, if open
 	if file != nil {
 		fmt.Println()
-		Print("Pw spray list written to "+path, Green)
+		if strings.ToLower(outputFormat) == "kerbrute" {
+			Print("User:Pass spray list written to "+path+"\n", Green)
+		} else {
+			Print("User spray list written to "+path+"\n", Green)
+		}
 		file.Close()
+	}
+
+	// Close file2, if open
+	if file2 != nil {
+		fmt.Println()
+		Print("Pw spray list written to "+path2+"\n", Green)
+		file2.Close()
 	}
 }
 
@@ -166,7 +199,21 @@ func appendToFile(file *os.File, combo string) {
 	writer.Flush()
 }
 
-func createFile(path string) (*os.File, string) {
+func createFile(path string, fileType int) (*os.File, string) {
+	if fileType == USER {
+		dir := filepath.Dir(path)
+		base := filepath.Base(path)
+		ext := filepath.Ext(base)
+		filename := base[:len(base)-len(ext)]
+		path = filepath.Join(dir, fmt.Sprintf("%s_user%s", filename, ext))
+	} else if fileType == PASS {
+		dir := filepath.Dir(path)
+		base := filepath.Base(path)
+		ext := filepath.Ext(base)
+		filename := base[:len(base)-len(ext)]
+		path = filepath.Join(dir, fmt.Sprintf("%s_pass%s", filename, ext))
+	}
+
 	// Check if the file already exists
 	_, err := os.Stat(path)
 	if err == nil {
