@@ -23,11 +23,11 @@ def print_yellow(text):
 
 def sync_time():
     # Stop VirtualBox Guest Utils or it will change the time back again
-    print_yellow(f"Stopping VirtualBox guest utils...")
-    cmd = ["sudo", "service"]
-    cmd.append("virtualbox-guest-utils")
-    cmd.append("stop")
-    subprocess.run(cmd)
+    #print_yellow(f"Stopping VirtualBox guest utils...")
+    #cmd = ["sudo", "service"]
+    #cmd.append("virtualbox-guest-utils")
+    #cmd.append("stop")
+    #subprocess.run(cmd)
     # Sync time with DC to prevent KRB_AP_ERR_SKEW
     print_yellow(f"Syncing time with DC {domaincontroller}...")
     cmd = ["sudo", "ntpdate"]
@@ -115,8 +115,8 @@ if __name__ == "__main__":
     run_kerbrute(filename, domain, account_lockout_threshold, reset_account_lockout_counter, domaincontroller, extra_flags)
 
     # Start VirtualBox Guest Utils again
-    print_yellow(f"Starting VirtualBox guest utils...")
-    cmd = ["sudo", "service"]
-    cmd.append("virtualbox-guest-utils")
-    cmd.append("start")
-    subprocess.run(cmd)
+    #print_yellow(f"Starting VirtualBox guest utils...")
+    #cmd = ["sudo", "service"]
+    #cmd.append("virtualbox-guest-utils")
+    #cmd.append("start")
+    #subprocess.run(cmd)
