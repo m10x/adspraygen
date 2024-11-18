@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"crypto/tls"
 	"bufio"
 	"fmt"
 	"os"
