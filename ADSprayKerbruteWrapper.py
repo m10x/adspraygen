@@ -3,7 +3,7 @@ import sys
 import os
 import time
 
-version = "v1.0.0"
+version = "v1.0.1"
 
 # ANSI color codes
 class Colors:
@@ -76,7 +76,7 @@ def run_kerbrute(filenameArg, domain, account_lockout_threshold, reset_account_l
         # Check if account lockout threshold is reached
         if counterKerbrute == account_lockout_threshold-1:
             print_yellow(f"\nAccount lockout threshold {account_lockout_threshold} almost reached ({counterKerbrute}). Waiting for {reset_account_lockout_counter} minutes...")
-            time.sleep(reset_account_lockout_counter * 60)
+            time.sleep((reset_account_lockout_counter + 1) * 60)
             counterKerbrute = 0
 
     print_yellow("Password spraying completed.")
