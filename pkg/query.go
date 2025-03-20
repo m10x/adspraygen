@@ -32,9 +32,9 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 		if cachedData, err := LoadLDAPDataFromCache(cacheFile); err == nil {
 			// Check if we need to update the cache based on server information
 			if ShouldUpdateCache(cachedData, ldapServer, ldapPort) {
-				Print("Server information changed, cache will be updated\n", Yellow)
+				PrintWarning("Server information changed, cache will be updated")
 			} else {
-				Print("Loading LDAP data from cache\n", Cyan)
+				PrintInfo("Loading LDAP data from cache")
 				searchResult = &ldap.SearchResult{
 					Entries: ConvertCacheToLDAPEntries(cachedData),
 				}
@@ -43,7 +43,7 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 				return
 			}
 		} else if !os.IsNotExist(err) {
-			Print(fmt.Sprintf("Error loading cache: %v\n", err), Yellow)
+			PrintWarning(fmt.Sprintf("Error loading cache: %v", err))
 		}
 	}
 
@@ -53,12 +53,12 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 	// Save results to cache if caching is enabled
 	if !noCache {
 		if err := SaveLDAPDataToCache(searchResult.Entries, ldapOU, ldapFilter, attributes, ldapServer, ldapPort, cacheFile); err != nil {
-			Print(fmt.Sprintf("Error saving cache: %v\n", err), Yellow)
+			PrintWarning(fmt.Sprintf("Error saving cache: %v", err))
 		} else {
 			if forceRefresh {
-				Print("Cache has been refreshed\n", Green)
+				PrintSuccess("Cache has been refreshed")
 			} else {
-				Print("LDAP data has been cached\n", Green)
+				PrintSuccess("LDAP data has been cached")
 			}
 		}
 	}
@@ -67,7 +67,7 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 }
 
 func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter string, pageSize int) (*ldap.SearchResult, string, []string) {
-	Print("Establishing LDAP Connection\n", Cyan)
+	PrintInfo("Establishing LDAP Connection")
 	protocol := "ldap"
 	if ldapS {
 		protocol = "ldaps"
@@ -126,7 +126,7 @@ func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUse
 	}
 
 	fmt.Println()
-	Print("Performing LDAP Search\n", Cyan)
+	PrintInfo("Performing LDAP Search")
 	var ou string
 	if ldapOU != "" {
 		if !strings.HasSuffix(ldapOU, ",") {
@@ -168,12 +168,12 @@ func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUse
 
 func processResults(searchResult *ldap.SearchResult, attributes []string, silent bool, outputFile, outputFormat, mask string) {
 	fmt.Println()
-	Print(fmt.Sprintf("Found %d user accounts\n", len(searchResult.Entries)), Green)
+	PrintSuccess(fmt.Sprintf("Found %d user accounts", len(searchResult.Entries)))
 
 	// Print out the results
 	if !silent {
 		fmt.Println()
-		Print("User attributes\n", Cyan)
+		PrintInfo("User attributes")
 		for _, entry := range searchResult.Entries {
 			for _, attribute := range attributes {
 				value := entry.GetAttributeValue(attribute)
@@ -193,7 +193,7 @@ func processResults(searchResult *ldap.SearchResult, attributes []string, silent
 	// Create output file
 	if outputFile != "" {
 		fmt.Println()
-		Print("Creating output file(s)\n", Cyan)
+		PrintInfo("Creating output file(s)")
 		if strings.ToLower(outputFormat) == "kerbrute" {
 			file, path = createFile(outputFile, COMBO)
 		} else if strings.ToLower(outputFormat) == "netexec" {
@@ -205,7 +205,7 @@ func processResults(searchResult *ldap.SearchResult, attributes []string, silent
 	// Generate the Passwords
 	if !silent {
 		fmt.Println()
-		Print("Pw spray combos\n", Cyan)
+		PrintInfo("Pw spray combos")
 	}
 	for _, entry := range searchResult.Entries {
 		username := entry.GetAttributeValue("sAMAccountName")
@@ -226,9 +226,9 @@ func processResults(searchResult *ldap.SearchResult, attributes []string, silent
 	if file != nil {
 		fmt.Println()
 		if strings.ToLower(outputFormat) == "kerbrute" {
-			Print("User:Pass spray list written to "+path+"\n", Green)
+			PrintSuccess("User:Pass spray list written to " + path)
 		} else {
-			Print("User spray list written to "+path+"\n", Green)
+			PrintSuccess("User spray list written to " + path)
 		}
 		file.Close()
 	}
@@ -236,7 +236,7 @@ func processResults(searchResult *ldap.SearchResult, attributes []string, silent
 	// Close file2, if open
 	if file2 != nil {
 		fmt.Println()
-		Print("Pw spray list written to "+path2+"\n", Green)
+		PrintSuccess("Pw spray list written to " + path2)
 		file2.Close()
 	}
 }
@@ -246,7 +246,7 @@ func appendToFile(file *os.File, combo string) {
 	writer := bufio.NewWriter(file)
 	_, err := writer.WriteString(combo + "\n")
 	if err != nil {
-		Print(err.Error()+"\n", Red)
+		PrintError(err.Error())
 	}
 	writer.Flush()
 }
@@ -269,7 +269,7 @@ func createFile(path string, fileType int) (*os.File, string) {
 	// Check if the file already exists
 	_, err := os.Stat(path)
 	if err == nil {
-		Print("File "+path+" already exists. Appending number...\n", Yellow)
+		PrintWarning("File " + path + " already exists. Appending number...")
 		// File exists, find a new filename
 		dir := filepath.Dir(path)
 		base := filepath.Base(path)
@@ -291,7 +291,7 @@ func createFile(path string, fileType int) (*os.File, string) {
 	// Create or open the file for appending
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		Print("Could not create/open file "+err.Error()+"\n", Red)
+		PrintError("Could not create/open file " + err.Error())
 		return nil, ""
 	}
 	fmt.Println("Created " + path)
