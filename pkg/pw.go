@@ -8,6 +8,8 @@ import (
 	"unicode"
 
 	"github.com/go-ldap/ldap/v3"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 const (
@@ -49,14 +51,11 @@ func generatePW(entry *ldap.Entry, mask string) string {
 			// If the placeholder is not recognized, try to get it from the ldap entry
 			value := entry.GetAttributeValue(placeholder)
 			if modifier != "" {
-				switch strings.ToLower(modifier) {
-				case "reverse":
-					return reverseString(value)
-				case "leetbasic":
-					return leetSpeak(value, LEET_BASIC)
-				case "leetbasicplus":
-					return leetSpeak(value, LEET_BASIC_PLUS)
+				result, err := applyModifier(value, modifier)
+				if err != nil {
+					return value
 				}
+				return result
 			}
 			return value
 		}
@@ -93,22 +92,6 @@ func leetSpeak(input string, technique int) string {
 		}
 	}
 	return result
-}
-
-func reverseString(input string) string {
-	// Convert string to a slice of runes
-	runes := []rune(strings.ToLower(input))
-	length := len(runes)
-	// Swap characters from beginning and end
-	for i := 0; i < length/2; i++ {
-		runes[i], runes[length-1-i] = runes[length-1-i], runes[i]
-	}
-	// Convert back to string and capitalize the first letter
-	reversedString := string(runes)
-	if length > 0 {
-		reversedString = string(unicode.ToUpper(runes[0])) + string(runes[1:])
-	}
-	return reversedString
 }
 
 // convertDate converts a date string into the desired format
@@ -170,4 +153,131 @@ func convertDate(dateString string, format string) (string, error) {
 		return "", fmt.Errorf("unsupported format")
 	}
 	return "", nil
+}
+
+// Reverse returns the reversed string
+func Reverse(s string) string {
+	runes := []rune(s)
+	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+		runes[i], runes[j] = runes[j], runes[i]
+	}
+	return string(runes)
+}
+
+// splitModifiers splits a modifier string into individual modifiers
+func splitModifiers(modifierString string) []string {
+	var modifiers []string
+	var currentModifier strings.Builder
+	parenCount := 0
+	escaped := false
+
+	for i := 0; i < len(modifierString); i++ {
+		char := modifierString[i]
+
+		// Handle escape character
+		if char == '\\' && !escaped {
+			escaped = true
+			continue
+		}
+
+		// Handle parentheses counting
+		if !escaped {
+			if char == '(' {
+				parenCount++
+			} else if char == ')' {
+				parenCount--
+			}
+		}
+
+		// Handle modifier separator
+		if char == '#' && !escaped && parenCount == 0 {
+			// If we have collected a modifier, add it to the list
+			if currentModifier.Len() > 0 {
+				modifiers = append(modifiers, currentModifier.String())
+				currentModifier.Reset()
+			}
+			continue
+		}
+
+		// Add the character to the current modifier
+		if escaped && char == '#' {
+			// For escaped #, add just the # without the escape character
+			currentModifier.WriteByte('#')
+		} else {
+			currentModifier.WriteByte(char)
+		}
+		escaped = false
+	}
+
+	// Add the last modifier if any
+	if currentModifier.Len() > 0 {
+		modifiers = append(modifiers, currentModifier.String())
+	}
+
+	return modifiers
+}
+
+func applyModifier(value, modifierString string) (string, error) {
+	if modifierString == "" {
+		return value, nil
+	}
+
+	// Split the modifier string into individual modifiers
+	modifiers := splitModifiers(modifierString)
+	result := value
+
+	// Apply each modifier in sequence
+	for _, modifier := range modifiers {
+		var err error
+		switch {
+		case modifier == "Reverse":
+			result = Reverse(result)
+		case modifier == "Upper":
+			result = strings.ToUpper(result)
+		case modifier == "Lower":
+			result = strings.ToLower(result)
+		case modifier == "Title":
+			result = cases.Title(language.English).String(strings.ToLower(result))
+		case modifier == "Capitalize":
+			if len(result) > 0 {
+				result = strings.ToUpper(result[:1]) + strings.ToLower(result[1:])
+			}
+		case modifier == "AlternateLower":
+			// Convert to alternating case starting with lowercase (e.g., "Hello" -> "hElLo")
+			runes := []rune(result)
+			for i := range runes {
+				if i%2 == 0 {
+					runes[i] = unicode.ToLower(runes[i])
+				} else {
+					runes[i] = unicode.ToUpper(runes[i])
+				}
+			}
+			result = string(runes)
+		case modifier == "AlternateUpper":
+			// Convert to alternating case starting with uppercase (e.g., "Hello" -> "HeLlO")
+			runes := []rune(result)
+			for i := range runes {
+				if i%2 == 0 {
+					runes[i] = unicode.ToUpper(runes[i])
+				} else {
+					runes[i] = unicode.ToLower(runes[i])
+				}
+			}
+			result = string(runes)
+		case modifier == "LeetBasic":
+			result = leetSpeak(result, LEET_BASIC)
+		case modifier == "LeetBasicPlus":
+			result = leetSpeak(result, LEET_BASIC_PLUS)
+		case strings.HasPrefix(modifier, "Pattern(") && strings.HasSuffix(modifier, ")"):
+			pattern := modifier[8 : len(modifier)-1] // Extract pattern between parentheses
+			result, err = ApplyPattern(result, pattern)
+			if err != nil {
+				return "", fmt.Errorf("error applying pattern modifier: %v", err)
+			}
+		default:
+			return "", fmt.Errorf("unknown modifier: %s", modifier)
+		}
+	}
+
+	return result, nil
 }

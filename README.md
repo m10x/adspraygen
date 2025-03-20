@@ -10,9 +10,10 @@ ADSprayGen a command-line utility written in Go that leverages LDAP (Lightweight
     - [Option 2: Install Using Go](#option-2-install-using-go)
 - [Usage](#usage)
     - [Mask Placeholders](#mask-placeholders)
-    - [Mask Placeholder Transformators](#mask-placeholder-transformators)
+    - [Modifiers](#modifiers)
 - [TODOs](#todos)
 - [Common LDAP Errors](#common-ldap-errors)
+
 
 ## Installation
 ### Option 1: Prebuilt Binary
@@ -48,17 +49,63 @@ Example: `adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{g
     - **{MonthGerman}** : e.g. Januar
     - **{MonthEnglish}** : e.g. January
 
-### Mask Placeholder Transformators
-- **\#Reverse** : Reverse the string
-- **\#LeetBasic** : Subsitute e:3, o:0, i:1, a:4
-- **\#LeetBasicPlus** : Subsitute e:3, o:0, i:1, a:@, t:7
+### Modifiers
+
+Modifiers can be used to transform attribute values. Multiple modifiers can be chained using `#`.
+
+#### Case Modifiers
+- `#Upper` - Converts text to uppercase
+  - Example: `{firstName#Upper}` → "JOHN"
+- `#Lower` - Converts text to lowercase
+  - Example: `{firstName#Lower}` → "john"
+- `#Title` - Capitalizes first letter of each word
+  - Example: `{firstName#Title}` → "John Smith"
+- `#Capitalize` - Capitalizes only the first letter
+  - Example: `{firstName#Capitalize}` → "John"
+
+
+#### Alternating Case Modifiers
+- `#AlternateLower` - Alternates case starting with lowercase
+  - Example: `{firstName#Alternate}` → "jOhN"
+- `#AlternateUpper` - Alternates case starting with uppercase
+  - Example: `{firstName#AlternateUpper}` → "JoHn"
+
+#### Text Transformation
+- `#Reverse` - Reverses the text
+  - Example: `{firstName#Reverse}` → "nhoJ"
+- `#Pattern(from>to)` - Replaces characters according to pattern rules
+  - Example: `{firstName#Pattern(a>4)}` → Replaces all 'a' with '4'
+  - Example: `{lastName#Pattern(e>3;a>4;i>1)}` → Leetspeak conversion
+  - Example: `{department#Pattern(IT>tech)}` → Replaces whole strings
+  - Example: `{givenName#Pattern(ll>1)}` → Replaces multiple characters
+  - Example: `{userName#Pattern(a>)}` → Removes all 'a' characters
+
+#### Leetspeak Modifiers
+- `#LeetBasic` - Basic leetspeak conversion (A->4, E->3, I->1, O->0)
+  - Example: `{firstName#LeetBasic}` → "J0hn"
+- `#LeetBasicPlus` - Extended leetspeak (Basic + A->@, T->7)
+  - Example: `{firstName#LeetBasicPlus}` → "J0hn"
+
+#### Chaining Modifiers
+You can combine multiple modifiers to achieve complex transformations:
+```
+{firstName#Upper#Reverse}              // "JOHN" → "NHOJ"
+{department#Lower#Pattern(it>tech)}    // "IT Support" → "tech support"
+{userName#Camel#LeetBasic}            // "john doe" → "j0hnD03"
+{text#AlternateUpper#Pattern(O>0)}    // "hello" → "H3Ll0"
+```
+
+Note: When using special characters in patterns (;, >, (, ), #), you need to escape them with a backslash:
+```
+{text#Pattern(a\;b>c)}     // Replaces "a;b" with "c"
+{text#Pattern(a\>b>c)}     // Replaces "a>b" with "c"
+{text#Pattern(\(x\)>y)}    // Replaces "(x)" with "y"
+{text#Pattern(a\#b>c)}     // Replaces "a#b" with "c"
+```
 
 ## TODOs
 - dump LDAP user attributes
-- import dumped LDAP user attributes instead of querying the LDAP server
 - handling of unknown mask attribute and unknown mask transformator
-- netexec format + kerbrute format
-- dump pw policy / fine grained policy
 - dump Hostnames
 - handling of givenName with multiple names
 
