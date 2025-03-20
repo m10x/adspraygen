@@ -18,7 +18,55 @@ const (
 	PASS  = 2
 )
 
-func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, outputFormat, mask string, pageSize int, silent bool) {
+func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, outputFormat, mask string, pageSize int, silent bool, cacheFile string, noCache bool, forceRefresh bool) {
+	var searchResult *ldap.SearchResult
+	var attributes []string
+
+	defaultCacheFile := "ldap_cache.json"
+	if cacheFile == "" {
+		cacheFile = defaultCacheFile
+	}
+
+	// Try to load from cache first if caching is enabled and no force refresh is requested
+	if !noCache && !forceRefresh {
+		if cachedData, err := LoadLDAPDataFromCache(cacheFile); err == nil {
+			// Check if we need to update the cache based on server information
+			if ShouldUpdateCache(cachedData, ldapServer, ldapPort) {
+				Print("Server information changed, cache will be updated\n", Yellow)
+			} else {
+				Print("Loading LDAP data from cache\n", Cyan)
+				searchResult = &ldap.SearchResult{
+					Entries: ConvertCacheToLDAPEntries(cachedData),
+				}
+				attributes = cachedData.Attributes
+				processResults(searchResult, attributes, silent, outputFile, outputFormat, mask)
+				return
+			}
+		} else if !os.IsNotExist(err) {
+			Print(fmt.Sprintf("Error loading cache: %v\n", err), Yellow)
+		}
+	}
+
+	// If we get here, we need to query LDAP
+	searchResult, _, attributes = performLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, pageSize)
+
+	// Save results to cache if caching is enabled
+	if !noCache {
+		if err := SaveLDAPDataToCache(searchResult.Entries, ldapOU, ldapFilter, attributes, ldapServer, ldapPort, cacheFile); err != nil {
+			Print(fmt.Sprintf("Error saving cache: %v\n", err), Yellow)
+		} else {
+			if forceRefresh {
+				Print("Cache has been refreshed\n", Green)
+			} else {
+				Print("LDAP data has been cached\n", Green)
+			}
+		}
+	}
+
+	processResults(searchResult, attributes, silent, outputFile, outputFormat, mask)
+}
+
+func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter string, pageSize int) (*ldap.SearchResult, string, []string) {
 	Print("Establishing LDAP Connection\n", Cyan)
 	protocol := "ldap"
 	if ldapS {
@@ -26,7 +74,7 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 	}
 	// Connect to LDAP server
 	ldapURL := fmt.Sprintf("%s://%s:%d", protocol, ldapServer, ldapPort)
-	fmt.Printf("ldap URL: %s\n", ldapURL)
+	fmt.Printf("LDAP URL: %s\n", ldapURL)
 	conn, err := ldap.DialURL(ldapURL)
 	if err != nil {
 		PrintFatal(err.Error())
@@ -92,7 +140,7 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 	// Build the searchBase by joining the domain parts with "DC="
 	searchBase := fmt.Sprintf("%sDC=%s", ou, strings.Join(domainParts, ",DC="))
 
-	attributes := []string{"cn", "sn", "givenName", "pwdLastSet", "sAMAccountName", "rPrincipalName", "description", "info", "department", "I", "postalCode"} // Attributes to retrieve
+	attributes := []string{"cn", "sn", "givenName", "pwdLastSet", "sAMAccountName", "userPrincipalName", "description", "info", "department", "l", "postalCode"}
 
 	// Search for user accounts
 	searchRequest := ldap.NewSearchRequest(
@@ -115,6 +163,10 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 		PrintFatal(err.Error())
 	}
 
+	return searchResult, searchBase, attributes
+}
+
+func processResults(searchResult *ldap.SearchResult, attributes []string, silent bool, outputFile, outputFormat, mask string) {
 	fmt.Println()
 	Print(fmt.Sprintf("Found %d user accounts\n", len(searchResult.Entries)), Green)
 

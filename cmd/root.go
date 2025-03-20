@@ -28,7 +28,7 @@ var (
 				pkg.PrintFatal("Unknown outputFormat!")
 			}
 
-			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, outputFormat, mask, pageSize, silent)
+			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, outputFormat, mask, pageSize, silent, cacheFile, noCache, forceRefresh)
 		},
 	}
 
@@ -41,6 +41,9 @@ var (
 	outputFile               string
 	outputFormat             string
 	silent                   bool
+	cacheFile                string
+	noCache                  bool
+	forceRefresh             bool
 )
 
 func init() {
@@ -59,6 +62,9 @@ func init() {
 	rootCmd.Flags().StringVar(&outputFormat, "outputformat", "kerbrute", "Output format. kerbrute creates a single file with user:pass, netexec creates two files, one with user and one with pass")
 	rootCmd.Flags().StringVarP(&mask, "mask", "m", "", "Password mask. E.g.: Foobar{givenName#Reverse}{MonthGerman}{YYYY}!")
 	rootCmd.Flags().BoolVar(&silent, "silent", false, "Do not print the user attributes and the user:pass combos")
+	rootCmd.PersistentFlags().StringVar(&cacheFile, "cache-file", "ldap_cache.json", "File to store cached LDAP data")
+	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Disable caching of LDAP data")
+	rootCmd.PersistentFlags().BoolVar(&forceRefresh, "force-refresh", false, "Force a new LDAP query and update the cache")
 	rootCmd.MarkFlagRequired("server")
 	rootCmd.MarkFlagRequired("domain")
 	rootCmd.MarkFlagRequired("mask")
