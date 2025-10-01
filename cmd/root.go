@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "v1.1.0"
+	version = "v1.1.1"
 	rootCmd = &cobra.Command{
 		Version: version,
 		Use:     "adspraygen",
@@ -48,7 +48,7 @@ var (
 
 func init() {
 	rootCmd.Flags().StringVarP(&ldapServer, "server", "s", "", "LDAP server address")
-	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", 389, "LDAP server port")
+	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", 389, "LDAP server port. Specify 636 for default LDAPS port")
 	rootCmd.Flags().IntVar(&pageSize, "pageSize", 500, "Page size")
 	rootCmd.Flags().BoolVar(&ldapS, "ldaps", false, "LDAP over SSL/TLS")
 	rootCmd.Flags().BoolVar(&ntlm, "ntlm", false, "Use NTLM authentication instead of basic LDAP authentication")

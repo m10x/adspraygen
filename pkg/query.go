@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -75,7 +76,10 @@ func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUse
 	// Connect to LDAP server
 	ldapURL := fmt.Sprintf("%s://%s:%d", protocol, ldapServer, ldapPort)
 	fmt.Printf("LDAP URL: %s\n", ldapURL)
-	conn, err := ldap.DialURL(ldapURL)
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true, // To avoid "cannot validate certificate" errors
+	}
+	conn, err := ldap.DialURL(ldapURL, ldap.DialWithTLSConfig(tlsConfig))
 	if err != nil {
 		PrintFatal(err.Error())
 	}
