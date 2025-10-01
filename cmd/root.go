@@ -28,6 +28,14 @@ var (
 				pkg.PrintFatal("Unknown outputFormat!")
 			}
 
+			if ldapPort == -1 {
+				if ldapS {
+					ldapPort = 636
+				} else {
+					ldapPort = 389
+				}
+			}
+
 			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, outputFormat, mask, pageSize, silent, cacheFile, noCache, forceRefresh)
 		},
 	}
@@ -48,7 +56,7 @@ var (
 
 func init() {
 	rootCmd.Flags().StringVarP(&ldapServer, "server", "s", "", "LDAP server address")
-	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", 389, "LDAP server port. Specify 636 for default LDAPS port")
+	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", -1, "LDAP server port. Default: 389 for LDAP and 636 for LDAPS")
 	rootCmd.Flags().IntVar(&pageSize, "pageSize", 500, "Page size")
 	rootCmd.Flags().BoolVar(&ldapS, "ldaps", false, "LDAP over SSL/TLS")
 	rootCmd.Flags().BoolVar(&ntlm, "ntlm", false, "Use NTLM authentication instead of basic LDAP authentication")
