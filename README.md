@@ -104,6 +104,7 @@ Note: When using special characters in patterns (;, >, (, ), #), you need to esc
 ```
 
 ## TODOs
+- filter disabled users
 - query PDC, so only domain is required
 - PSO
 - handling of givenName with multiple names
