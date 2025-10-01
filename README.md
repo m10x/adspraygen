@@ -104,9 +104,8 @@ Note: When using special characters in patterns (;, >, (, ), #), you need to esc
 ```
 
 ## TODOs
-- dump LDAP user attributes
-- handling of unknown mask attribute and unknown mask transformator
-- dump Hostnames
+- query PDC, so only domain is required
+- PSO
 - handling of givenName with multiple names
 
 ## Common LDAP Errors
