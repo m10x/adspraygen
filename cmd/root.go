@@ -11,76 +11,14 @@ import (
 )
 
 var (
-	version = "v1.1.1"
+	version = "v1.2.0"
 	rootCmd = &cobra.Command{
 		Version: version,
 		Use:     "adspraygen",
-		Short:   getShortDescription(),
-		Long:    fmt.Sprintf("%s\nADSprayGen %s\n\n%s\n%s", getLogo(), version, getShortDescription(), getMaskOptions()),
-		Example: "adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{givenName#Reverse}{MonthGerman}{YYYY}!'",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := cmd.ParseFlags(args)
-			if err != nil {
-				pkg.PrintFatal(err.Error())
-			}
-
-			if strings.ToLower(outputFormat) != "kerbrute" && strings.ToLower(outputFormat) != "netexec" {
-				pkg.PrintFatal("Unknown outputFormat!")
-			}
-
-			if ldapPort == -1 {
-				if ldapS {
-					ldapPort = 636
-				} else {
-					ldapPort = 389
-				}
-			}
-
-			pkg.RunLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, username, password, hash, domain, ou, filter, outputFile, outputFormat, mask, pageSize, silent, cacheFile, noCache, forceRefresh)
-		},
+		Short:   "Active Directory password spray helper toolkit",
+		Long:    fmt.Sprintf("%s\nADSprayGen %s\n\nUse one of the available subcommands: gen, pattern, spray", getLogo(), version),
 	}
-
-	ldapServer               string
-	ldapPort, pageSize       int
-	ldapS, ntlm              bool
-	username, password, hash string
-	domain, ou, filter       string
-	mask                     string
-	outputFile               string
-	outputFormat             string
-	silent                   bool
-	cacheFile                string
-	noCache                  bool
-	forceRefresh             bool
 )
-
-func init() {
-	rootCmd.Flags().StringVarP(&ldapServer, "server", "s", "", "LDAP server address")
-	rootCmd.Flags().IntVarP(&ldapPort, "port", "P", -1, "LDAP server port. Default: 389 for LDAP and 636 for LDAPS")
-	rootCmd.Flags().IntVar(&pageSize, "pageSize", 500, "Page size")
-	rootCmd.Flags().BoolVar(&ldapS, "ldaps", false, "LDAP over SSL/TLS")
-	rootCmd.Flags().BoolVar(&ntlm, "ntlm", false, "Use NTLM authentication instead of basic LDAP authentication")
-	rootCmd.Flags().StringVarP(&username, "username", "u", "", "Username. If no username is specified, an anonymous bind is attempted")
-	rootCmd.Flags().StringVarP(&password, "password", "p", "", "Password. If no password is specified, an unauthenticated bind is attempted")
-	rootCmd.Flags().StringVar(&hash, "hash", "", "NTLM Hash (Pass-the-Hash)")
-	rootCmd.Flags().StringVarP(&domain, "domain", "d", "", "FQDN")
-	rootCmd.Flags().StringVarP(&filter, "filter", "f", "(&(objectClass=User)(objectCategory=Person))", "LDAP Query Filter")
-	rootCmd.Flags().StringVar(&ou, "ou", "", "Organizational Unit. E.g.: OU=Users,OU=GDATA")
-	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file. Appends an incremental number if the file already exists")
-	rootCmd.Flags().StringVar(&outputFormat, "outputformat", "kerbrute", "Output format. kerbrute creates a single file with user:pass, netexec creates two files, one with user and one with pass")
-	rootCmd.Flags().StringVarP(&mask, "mask", "m", "", "Password mask. E.g.: Foobar{givenName#Reverse}{MonthGerman}{YYYY}!")
-	rootCmd.Flags().BoolVar(&silent, "silent", false, "Do not print the user attributes and the user:pass combos")
-	rootCmd.PersistentFlags().StringVar(&cacheFile, "cache-file", "ldap_cache.json", "File to store cached LDAP data")
-	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Disable caching of LDAP data")
-	rootCmd.PersistentFlags().BoolVar(&forceRefresh, "force-refresh", false, "Force a new LDAP query and update the cache")
-	rootCmd.MarkFlagRequired("server")
-	rootCmd.MarkFlagRequired("domain")
-	rootCmd.MarkFlagRequired("mask")
-}
-
-func getShortDescription() string {
-	return "Query LDAP server to retrieve user information and generate a pw spraying list"
-}
 
 func getMaskOptions() string {
 	return `
@@ -106,10 +44,17 @@ Mask Placeholders
     - {MonthGerman} : e.g. Januar
     - {MonthEnglish} : e.g. January
 
-Mask Placeholder Modifiers
-- #Reverse : Reverse the string
-- #LeetBasic : Subsitute e:3, o:0, i:1, a:4
-- #LeetBasicPlus : Subsitute e:3, o:0, i:1, a:@, t:7`
+Mask Placeholder Modifiers (append to placeholder with #, chainable with multiple #)
+- #Upper            : Convert to uppercase                  e.g. {givenName#Upper} → JOHN
+- #Lower            : Convert to lowercase                  e.g. {givenName#Lower} → john
+- #Title            : Capitalize first letter of each word  e.g. {givenName#Title} → John Smith
+- #Capitalize       : Capitalize first letter only          e.g. {givenName#Capitalize} → John
+- #AlternateLower   : Alternating case, start lower         e.g. {givenName#AlternateLower} → jOhN
+- #AlternateUpper   : Alternating case, start upper         e.g. {givenName#AlternateUpper} → JoHn
+- #Reverse          : Reverse the string                    e.g. {givenName#Reverse} → nhoJ
+- #LeetBasic        : Substitute e→3, o→0, i→1, a→4
+- #LeetBasicPlus    : Substitute e→3, o→0, i→1, a→@, t→7
+- #Pattern(x>y)     : Replace x with y, chain rules with ;  e.g. {sn#Pattern(e>3;a>4)} → l33tspeak`
 }
 
 func getLogo() (logo string) {

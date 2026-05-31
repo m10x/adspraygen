@@ -19,7 +19,7 @@ const (
 	PASS  = 2
 )
 
-func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, outputFormat, mask string, pageSize int, silent bool, cacheFile string, noCache bool, forceRefresh bool) {
+func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, outputFile, outputFormat string, masks []string, pageSize int, silent bool, cacheFile string, noCache bool, forceRefresh bool) {
 	var searchResult *ldap.SearchResult
 	var attributes []string
 
@@ -40,7 +40,8 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 					Entries: ConvertCacheToLDAPEntries(cachedData),
 				}
 				attributes = cachedData.Attributes
-				processResults(searchResult, attributes, silent, outputFile, outputFormat, mask)
+				processResults(searchResult, attributes, silent, outputFile, outputFormat, masks)
+				printPasswordPolicy(cachedData.PasswordPolicy)
 				return
 			}
 		} else if !os.IsNotExist(err) {
@@ -49,11 +50,12 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 	}
 
 	// If we get here, we need to query LDAP
-	searchResult, _, attributes = performLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, pageSize)
+	var policy *PasswordPolicy
+	searchResult, _, attributes, policy = performLDAPQuery(ldapServer, ldapPort, ldapS, ntlm, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter, pageSize)
 
 	// Save results to cache if caching is enabled
 	if !noCache {
-		if err := SaveLDAPDataToCache(searchResult.Entries, ldapOU, ldapFilter, attributes, ldapServer, ldapPort, cacheFile); err != nil {
+		if err := SaveLDAPDataToCache(searchResult.Entries, ldapOU, ldapFilter, attributes, ldapServer, ldapPort, cacheFile, policy); err != nil {
 			PrintWarning(fmt.Sprintf("Error saving cache: %v", err))
 		} else {
 			if forceRefresh {
@@ -64,10 +66,11 @@ func RunLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsernam
 		}
 	}
 
-	processResults(searchResult, attributes, silent, outputFile, outputFormat, mask)
+	processResults(searchResult, attributes, silent, outputFile, outputFormat, masks)
+	printPasswordPolicy(policy)
 }
 
-func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter string, pageSize int) (*ldap.SearchResult, string, []string) {
+func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUsername, ldapPassword, ntlmHash, ldapDomain, ldapOU, ldapFilter string, pageSize int) (*ldap.SearchResult, string, []string, *PasswordPolicy) {
 	PrintInfo("Establishing LDAP Connection")
 	protocol := "ldap"
 	if ldapS {
@@ -143,8 +146,9 @@ func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUse
 	domainParts := strings.Split(ldapDomain, ".")
 	// Build the searchBase by joining the domain parts with "DC="
 	searchBase := fmt.Sprintf("%sDC=%s", ou, strings.Join(domainParts, ",DC="))
+	domainBase := fmt.Sprintf("DC=%s", strings.Join(domainParts, ",DC="))
 
-	attributes := []string{"cn", "sn", "givenName", "pwdLastSet", "sAMAccountName", "userPrincipalName", "description", "info", "department", "l", "postalCode"}
+	attributes := []string{"cn", "sn", "givenName", "pwdLastSet", "sAMAccountName", "userPrincipalName", "description", "info", "department", "l", "postalCode", "badPwdCount", "lockoutTime", "msDS-ResultantPSO"}
 
 	// Search for user accounts
 	searchRequest := ldap.NewSearchRequest(
@@ -167,10 +171,96 @@ func performLDAPQuery(ldapServer string, ldapPort int, ldapS, ntlm bool, ldapUse
 		PrintFatal(err.Error())
 	}
 
-	return searchResult, searchBase, attributes
+	policy := queryPasswordPolicy(conn, domainBase)
+
+	return searchResult, searchBase, attributes, policy
 }
 
-func processResults(searchResult *ldap.SearchResult, attributes []string, silent bool, outputFile, outputFormat, mask string) {
+func queryPasswordPolicy(conn *ldap.Conn, domainBase string) *PasswordPolicy {
+	policyAttrs := []string{
+		"minPwdLength", "pwdHistoryLength", "maxPwdAge", "minPwdAge",
+		"pwdProperties", "lockoutThreshold", "lockoutDuration", "lockOutObservationWindow",
+	}
+	req := ldap.NewSearchRequest(
+		domainBase,
+		ldap.ScopeBaseObject,
+		ldap.NeverDerefAliases,
+		0, 0, false,
+		"(objectClass=*)",
+		policyAttrs,
+		nil,
+	)
+	result, err := conn.Search(req)
+	if err != nil || len(result.Entries) == 0 {
+		PrintWarning(fmt.Sprintf("Could not query password policy: %v", err))
+		return nil
+	}
+	entry := result.Entries[0]
+	policy := &PasswordPolicy{}
+
+	if v := entry.GetAttributeValue("minPwdLength"); v != "" {
+		policy.MinPwdLength, _ = strconv.Atoi(v)
+	}
+	if v := entry.GetAttributeValue("pwdHistoryLength"); v != "" {
+		policy.PwdHistoryLength, _ = strconv.Atoi(v)
+	}
+	if v := entry.GetAttributeValue("maxPwdAge"); v != "" {
+		if ticks, err := strconv.ParseInt(v, 10, 64); err == nil && ticks != 0 {
+			policy.MaxPwdAgeDays = -ticks / 10_000_000 / 86_400
+		}
+	}
+	if v := entry.GetAttributeValue("minPwdAge"); v != "" {
+		if ticks, err := strconv.ParseInt(v, 10, 64); err == nil && ticks != 0 {
+			policy.MinPwdAgeDays = -ticks / 10_000_000 / 86_400
+		}
+	}
+	if v := entry.GetAttributeValue("pwdProperties"); v != "" {
+		if props, err := strconv.Atoi(v); err == nil {
+			policy.PwdComplexity = (props & 1) != 0
+		}
+	}
+	if v := entry.GetAttributeValue("lockoutThreshold"); v != "" {
+		policy.LockoutThreshold, _ = strconv.Atoi(v)
+	}
+	if v := entry.GetAttributeValue("lockoutDuration"); v != "" {
+		if ticks, err := strconv.ParseInt(v, 10, 64); err == nil && ticks != 0 {
+			policy.LockoutDurationMinutes = -ticks / 10_000_000 / 60
+		}
+	}
+	if v := entry.GetAttributeValue("lockOutObservationWindow"); v != "" {
+		if ticks, err := strconv.ParseInt(v, 10, 64); err == nil && ticks != 0 {
+			policy.LockoutObservationMinutes = -ticks / 10_000_000 / 60
+		}
+	}
+
+	return policy
+}
+
+func printPasswordPolicy(policy *PasswordPolicy) {
+	if policy == nil {
+		return
+	}
+	fmt.Println()
+	PrintInfo("Password Policy")
+	fmt.Printf("  Min. Password Length:         %d\n", policy.MinPwdLength)
+	fmt.Printf("  Password History Length:      %d\n", policy.PwdHistoryLength)
+	if policy.MaxPwdAgeDays == 0 {
+		fmt.Printf("  Max. Password Age:            never expires\n")
+	} else {
+		fmt.Printf("  Max. Password Age:            %d days\n", policy.MaxPwdAgeDays)
+	}
+	fmt.Printf("  Min. Password Age:            %d days\n", policy.MinPwdAgeDays)
+	fmt.Printf("  Password Complexity Required: %v\n", policy.PwdComplexity)
+	if policy.LockoutThreshold == 0 {
+		fmt.Printf("  Account Lockout:              disabled\n")
+	} else {
+		fmt.Printf("  Account Lockout Threshold:    %d attempts\n", policy.LockoutThreshold)
+		fmt.Printf("  Account Lockout Duration:     %d minutes\n", policy.LockoutDurationMinutes)
+		fmt.Printf("  Lockout Observation Window:   %d minutes\n", policy.LockoutObservationMinutes)
+	}
+}
+
+func processResults(searchResult *ldap.SearchResult, attributes []string, silent bool, outputFile, outputFormat string, masks []string) {
 	fmt.Println()
 	PrintSuccess(fmt.Sprintf("Found %d user accounts", len(searchResult.Entries)))
 
@@ -190,59 +280,118 @@ func processResults(searchResult *ldap.SearchResult, attributes []string, silent
 		}
 	}
 
-	var file *os.File
-	var file2 *os.File
-	var path string
-	var path2 string
-	// Create output file
-	if outputFile != "" {
-		fmt.Println()
-		PrintInfo("Creating output file(s)")
-		if strings.ToLower(outputFormat) == "kerbrute" {
-			file, path = createFile(outputFile, COMBO)
-		} else if strings.ToLower(outputFormat) == "netexec" {
-			file, path = createFile(outputFile, USER)
-			file2, path2 = createFile(outputFile, PASS)
+	// Generate passwords for each mask
+	for maskIndex, mask := range masks {
+		var file *os.File
+		var file2 *os.File
+		var path string
+		var path2 string
+
+		if outputFile != "" {
+			fileBase := outputFile
+			if len(masks) > 1 {
+				fileBase = buildMaskOutputPath(outputFile, maskIndex+1)
+			}
+
+			if strings.ToLower(outputFormat) == "kerbrute" {
+				file, path = createFile(fileBase, COMBO)
+			} else if strings.ToLower(outputFormat) == "netexec" {
+				file, path = createFile(fileBase, USER)
+				file2, path2 = createFile(fileBase, PASS)
+			}
+		}
+
+		if !silent {
+			fmt.Println()
+			if len(masks) > 1 {
+				PrintInfo(fmt.Sprintf("Pw spray combos (mask: %s)", mask))
+			} else {
+				PrintInfo("Pw spray combos")
+			}
+		}
+		for _, entry := range searchResult.Entries {
+			username := entry.GetAttributeValue("sAMAccountName")
+			password := generatePW(entry, mask)
+			combo := fmt.Sprintf("%s:%s", username, password)
+			if !silent {
+				fmt.Println(combo)
+			}
+			if strings.ToLower(outputFormat) == "kerbrute" && file != nil {
+				appendToFile(file, combo)
+			} else if strings.ToLower(outputFormat) == "netexec" && file != nil && file2 != nil {
+				appendToFile(file, username)
+				appendToFile(file2, password)
+			}
+		}
+
+		if file != nil {
+			fmt.Println()
+			if strings.ToLower(outputFormat) == "kerbrute" {
+				PrintSuccess("User:Pass spray list written to " + path)
+			} else {
+				PrintSuccess("User spray list written to " + path)
+			}
+			file.Close()
+		}
+
+		if file2 != nil {
+			fmt.Println()
+			PrintSuccess("Pw spray list written to " + path2)
+			file2.Close()
 		}
 	}
 
-	// Generate the Passwords
-	if !silent {
-		fmt.Println()
-		PrintInfo("Pw spray combos")
-	}
+	// Warn about locked accounts and accounts with bad password attempts
+	var lockedUsers []string
+	var badPwdUsers []string
+	var fgppSetUsers []string
+	var fgppNotSetUsers []string
 	for _, entry := range searchResult.Entries {
 		username := entry.GetAttributeValue("sAMAccountName")
-		password := generatePW(entry, mask)
-		combo := fmt.Sprintf("%s:%s", username, password)
-		if !silent {
-			fmt.Println(combo)
-		}
-		if strings.ToLower(outputFormat) == "kerbrute" && file != nil {
-			appendToFile(file, combo)
-		} else if strings.ToLower(outputFormat) == "netexec" && file != nil && file2 != nil {
-			appendToFile(file, username)
-			appendToFile(file2, password)
-		}
-	}
+		lockoutTimeVal := entry.GetAttributeValue("lockoutTime")
+		badPwdVal := entry.GetAttributeValue("badPwdCount")
+		resultantPSO := strings.TrimSpace(entry.GetAttributeValue("msDS-ResultantPSO"))
 
-	// Close file, if open
-	if file != nil {
-		fmt.Println()
-		if strings.ToLower(outputFormat) == "kerbrute" {
-			PrintSuccess("User:Pass spray list written to " + path)
+		if lockoutTimeVal != "" && lockoutTimeVal != "0" {
+			lockedUsers = append(lockedUsers, username)
+		} else if count, err := strconv.Atoi(badPwdVal); err == nil && count > 0 {
+			badPwdUsers = append(badPwdUsers, fmt.Sprintf("%s (badPwdCount: %d)", username, count))
+		}
+
+		if resultantPSO != "" {
+			fgppSetUsers = append(fgppSetUsers, fmt.Sprintf("%s (%s)", username, resultantPSO))
 		} else {
-			PrintSuccess("User spray list written to " + path)
+			fgppNotSetUsers = append(fgppNotSetUsers, username)
 		}
-		file.Close()
 	}
 
-	// Close file2, if open
-	if file2 != nil {
+	if len(lockedUsers) > 0 || len(badPwdUsers) > 0 {
 		fmt.Println()
-		PrintSuccess("Pw spray list written to " + path2)
-		file2.Close()
+		PrintWarning("Account status warnings:")
+		for _, u := range lockedUsers {
+			PrintWarning(fmt.Sprintf("  LOCKED OUT: %s", u))
+		}
+		for _, u := range badPwdUsers {
+			PrintWarning(fmt.Sprintf("  Bad password count > 0: %s", u))
+		}
 	}
+
+	fmt.Println()
+	PrintInfo("Fine-Grained Password Policy (FGPP) status:")
+	if len(fgppSetUsers) == 0 {
+		fmt.Println("  No users with FGPP set")
+	}
+	for _, u := range fgppSetUsers {
+		PrintInfo(fmt.Sprintf("  FGPP set: %s", u))
+	}
+}
+
+func buildMaskOutputPath(path string, maskIndex int) string {
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	filename := base[:len(base)-len(ext)]
+	return filepath.Join(dir, fmt.Sprintf("%s_%d%s", filename, maskIndex, ext))
 }
 
 func appendToFile(file *os.File, combo string) {
@@ -300,6 +449,12 @@ func createFile(path string, fileType int) (*os.File, string) {
 	}
 	fmt.Println("Created " + path)
 	return file, path
+}
+
+// CreateOutputFile creates a combo-style output file and appends an incrementing
+// numeric suffix if the target path already exists.
+func CreateOutputFile(path string) (*os.File, string) {
+	return createFile(path, COMBO)
 }
 
 func convertTime(pwdLastSet string) string {

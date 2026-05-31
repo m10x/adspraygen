@@ -25,7 +25,28 @@ go install -v github.com/m10x/adspraygen@latest
 ```
 
 ## Usage
-Example: `adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{givenName#Reverse}{MonthGerman}{YYYY}!'`
+ADSprayGen now provides 3 subcommands:
+
+- `adspraygen pattern` - generic pattern generation from `[WORD]`, `[NUMBER]`, `[SPECIAL]`
+  - use this one first to easily generate a *LOT* of password masks
+- `adspraygen gen` - LDAP query and combo generation (previous default behavior).
+  - use this one second to use masks to generate user:password combos.
+  - queries LDAP and caches LDAP attributes to use them for password generation.
+- `adspraygen spray` - kerbrute spray wrapper with lockout-safe waiting
+  - use this one last to use kerbrute to spray the user:password combos.
+  - uses the cached LDAP password policy information or via parameters specified password policy in order not to lock accounts
+
+**Examples:**
+
+- `adspraygen gen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{givenName#Reverse}{MonthGerman}{YYYY}!' -f '(&(objectClass=User)(objectCategory=Person))(!(userAccountControl:1.2.840.113556.1.4.803:=2))' -o spray.txt`
+  - `-s`: DC IP
+  - `-f`: LDAP Query, Here For Only Enabled Accounts
+  - `-m`: The password mask to be used: alternatively use adspraygen pattern and adspraygen gen --mask-file in order to easily generate a lot of password masks
+- `adspraygen pattern --patterns-file patterns.txt --nouns nouns.txt --out masks.txt --limit 50000`
+- `adspraygen gen -d domain.local -u m10x -p m10x -s 10.10.10.10 --mask-file masks.txt -o spray.txt`
+- `adspraygen spray --file spray.txt --domain domain.local --dc 10.10.10.10 --extra-flags "--safe"`
+  - sprays the user:password combinations
+  - uses the cached lockout policy information. Otherwise use --lockout-threshold and --reset-lockout-counter
 
 ### Mask Placeholders
 - **{cn}** : Full Name
@@ -51,51 +72,31 @@ Example: `adspraygen -d domain.local -u m10x -p m10x -s 10.10.10.10 -m 'Foobar{g
 
 ### Modifiers
 
-Modifiers can be used to transform attribute values. Multiple modifiers can be chained using `#`.
+Modifiers transform attribute values. Append with `#`, chain multiple modifiers with additional `#`.
 
-#### Case Modifiers
-- `#Upper` - Converts text to uppercase
-  - Example: `{firstName#Upper}` → "JOHN"
-- `#Lower` - Converts text to lowercase
-  - Example: `{firstName#Lower}` → "john"
-- `#Title` - Capitalizes first letter of each word
-  - Example: `{firstName#Title}` → "John Smith"
-- `#Capitalize` - Capitalizes only the first letter
-  - Example: `{firstName#Capitalize}` → "John"
+| Modifier | Description | Example | Result |
+|---|---|---|---|
+| `#Upper` | Uppercase | `{givenName#Upper}` | `JOHN` |
+| `#Lower` | Lowercase | `{givenName#Lower}` | `john` |
+| `#Title` | Capitalize each word | `{givenName#Title}` | `John Smith` |
+| `#Capitalize` | Capitalize first letter only | `{givenName#Capitalize}` | `John` |
+| `#AlternateLower` | Alternating case, start lower | `{givenName#AlternateLower}` | `jOhN` |
+| `#AlternateUpper` | Alternating case, start upper | `{givenName#AlternateUpper}` | `JoHn` |
+| `#Reverse` | Reverse the string | `{givenName#Reverse}` | `nhoJ` |
+| `#LeetBasic` | Substitute e→3, o→0, i→1, a→4 | `{givenName#LeetBasic}` | `J0hn` |
+| `#LeetBasicPlus` | Like LeetBasic + a→@, t→7 | `{givenName#LeetBasicPlus}` | `J0hn` |
+| `#Pattern(x>y)` | Replace x with y; chain rules with `;` | `{sn#Pattern(o>oO;a>4)}` | `JoOhn` |
 
-
-#### Alternating Case Modifiers
-- `#AlternateLower` - Alternates case starting with lowercase
-  - Example: `{firstName#Alternate}` → "jOhN"
-- `#AlternateUpper` - Alternates case starting with uppercase
-  - Example: `{firstName#AlternateUpper}` → "JoHn"
-
-#### Text Transformation
-- `#Reverse` - Reverses the text
-  - Example: `{firstName#Reverse}` → "nhoJ"
-- `#Pattern(from>to)` - Replaces characters according to pattern rules
-  - Example: `{firstName#Pattern(a>4)}` → Replaces all 'a' with '4'
-  - Example: `{lastName#Pattern(e>3;a>4;i>1)}` → Leetspeak conversion
-  - Example: `{department#Pattern(IT>tech)}` → Replaces whole strings
-  - Example: `{givenName#Pattern(ll>1)}` → Replaces multiple characters
-  - Example: `{userName#Pattern(a>)}` → Removes all 'a' characters
-
-#### Leetspeak Modifiers
-- `#LeetBasic` - Basic leetspeak conversion (A->4, E->3, I->1, O->0)
-  - Example: `{firstName#LeetBasic}` → "J0hn"
-- `#LeetBasicPlus` - Extended leetspeak (Basic + A->@, T->7)
-  - Example: `{firstName#LeetBasicPlus}` → "J0hn"
-
-#### Chaining Modifiers
-You can combine multiple modifiers to achieve complex transformations:
+#### Pattern Modifier Examples
 ```
-{firstName#Upper#Reverse}              // "JOHN" → "NHOJ"
-{department#Lower#Pattern(it>tech)}    // "IT Support" → "tech support"
-{userName#Camel#LeetBasic}            // "john doe" → "j0hnD03"
-{text#AlternateUpper#Pattern(O>0)}    // "hello" → "H3Ll0"
+{firstName#Pattern(a>4)}           // Replace all 'a' with '4'
+{lastName#Pattern(e>3;a>4;i>1)}    // Leetspeak conversion
+{department#Pattern(IT>tech)}      // Replace whole strings
+{givenName#Pattern(ll>1)}          // Replace multiple characters
+{userName#Pattern(a>)}             // Remove all 'a' characters
 ```
 
-Note: When using special characters in patterns (;, >, (, ), #), you need to escape them with a backslash:
+Escape special characters in patterns with a backslash:
 ```
 {text#Pattern(a\;b>c)}     // Replaces "a;b" with "c"
 {text#Pattern(a\>b>c)}     // Replaces "a>b" with "c"
@@ -103,11 +104,12 @@ Note: When using special characters in patterns (;, >, (, ), #), you need to esc
 {text#Pattern(a\#b>c)}     // Replaces "a#b" with "c"
 ```
 
-## TODOs
-- filter disabled users
-- query PDC, so only domain is required
-- PSO
-- handling of givenName with multiple names
+#### Chaining Modifiers
+```
+{firstName#Upper#Reverse}              // "john" → "NHOJ"
+{department#Lower#Pattern(it>tech)}    // "IT Support" → "tech support"
+{givenName#AlternateUpper#LeetBasic}   // "john" → "J0Hn"
+```
 
 ## Common LDAP Errors
 - `LDAP Result Code 1 "Operations Error": 000004DC: LdapErr: DSID-0C090A5C, comment: In order to perform this operation a successful bind must be completed on the connection.` - Anonymous/Unauthenticated bind is not possible. Specify a password or NTLM hash.

@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -87,4 +88,27 @@ func PrintInfo(msg string) {
 // PrintDebug prints a debug message in blue
 func PrintDebug(msg string) {
 	Print("⚙ "+msg, Blue)
+}
+
+// ReadMaskFile reads a file and returns all non-empty, non-comment lines as masks.
+func ReadMaskFile(path string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open mask file: %w", err)
+	}
+	defer f.Close()
+
+	var masks []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		masks = append(masks, line)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading mask file: %w", err)
+	}
+	return masks, nil
 }

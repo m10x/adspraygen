@@ -1,0 +1,8 @@
+{givenName}
+{sn}
+{givenName#Reverse}
+{sn#Reverse}
+{sAMAccountName}
+{sAMAccountName#Capitalize}
+{sAMAccountName#Lower}
+{sAMAccountName#Upper}

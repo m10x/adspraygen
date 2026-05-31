@@ -1,2 +1,0 @@
-{givenName#Reverse}
-{sn#Reverse}

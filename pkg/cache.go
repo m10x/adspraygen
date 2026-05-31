@@ -11,13 +11,14 @@ import (
 
 // CachedLDAPData represents the cached LDAP data
 type CachedLDAPData struct {
-	Entries    []LDAPEntry `json:"entries"`
-	CachedAt   time.Time   `json:"cached_at"`
-	SearchBase string      `json:"search_base"`
-	LDAPFilter string      `json:"ldap_filter"`
-	Attributes []string    `json:"attributes"`
-	LDAPServer string      `json:"ldap_server"`
-	LDAPPort   int         `json:"ldap_port"`
+	Entries        []LDAPEntry     `json:"entries"`
+	CachedAt       time.Time       `json:"cached_at"`
+	SearchBase     string          `json:"search_base"`
+	LDAPFilter     string          `json:"ldap_filter"`
+	Attributes     []string        `json:"attributes"`
+	LDAPServer     string          `json:"ldap_server"`
+	LDAPPort       int             `json:"ldap_port"`
+	PasswordPolicy *PasswordPolicy `json:"password_policy,omitempty"`
 }
 
 // LDAPEntry represents a single LDAP entry
@@ -26,15 +27,28 @@ type LDAPEntry struct {
 	Attributes map[string][]string `json:"attributes"`
 }
 
+// PasswordPolicy holds the default domain password policy
+type PasswordPolicy struct {
+	MinPwdLength              int   `json:"minPwdLength"`
+	PwdHistoryLength          int   `json:"pwdHistoryLength"`
+	MaxPwdAgeDays             int64 `json:"maxPwdAgeDays"`
+	MinPwdAgeDays             int64 `json:"minPwdAgeDays"`
+	PwdComplexity             bool  `json:"pwdComplexity"`
+	LockoutThreshold          int   `json:"lockoutThreshold"`
+	LockoutDurationMinutes    int64 `json:"lockoutDurationMinutes"`
+	LockoutObservationMinutes int64 `json:"lockoutObservationMinutes"`
+}
+
 // SaveLDAPDataToCache stores the LDAP data in a JSON file
-func SaveLDAPDataToCache(entries []*ldap.Entry, searchBase, ldapFilter string, attributes []string, ldapServer string, ldapPort int, cacheFile string) error {
+func SaveLDAPDataToCache(entries []*ldap.Entry, searchBase, ldapFilter string, attributes []string, ldapServer string, ldapPort int, cacheFile string, policy *PasswordPolicy) error {
 	cachedData := CachedLDAPData{
-		CachedAt:   time.Now(),
-		SearchBase: searchBase,
-		LDAPFilter: ldapFilter,
-		Attributes: attributes,
-		LDAPServer: ldapServer,
-		LDAPPort:   ldapPort,
+		CachedAt:       time.Now(),
+		SearchBase:     searchBase,
+		LDAPFilter:     ldapFilter,
+		Attributes:     attributes,
+		LDAPServer:     ldapServer,
+		LDAPPort:       ldapPort,
+		PasswordPolicy: policy,
 	}
 
 	// Convert LDAP entries to cache format
