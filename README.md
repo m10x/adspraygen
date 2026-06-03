@@ -11,7 +11,6 @@ ADSprayGen a command-line utility written in Go that leverages LDAP (Lightweight
 - [Usage](#usage)
     - [Mask Placeholders](#mask-placeholders)
     - [Modifiers](#modifiers)
-- [TODOs](#todos)
 - [Common LDAP Errors](#common-ldap-errors)
 
 
