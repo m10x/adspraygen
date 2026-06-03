@@ -11,7 +11,6 @@ ADSprayGen a command-line utility written in Go that leverages LDAP (Lightweight
 - [Usage](#usage)
     - [Mask Placeholders](#mask-placeholders)
     - [Modifiers](#modifiers)
-- [TODOs](#todos)
 - [Common LDAP Errors](#common-ldap-errors)
 
 
@@ -19,7 +18,7 @@ ADSprayGen a command-line utility written in Go that leverages LDAP (Lightweight
 ### Option 1: Prebuilt Binary
 Prebuilt binaries of ADSprayGen are provided on the [releases page](https://github.com/m10x/adspraygen/releases).
 ### Option 2: Install Using Go
-Requirements: go1.23 or higher
+Requirements: go1.25 or higher
 ```bash
 go install -v github.com/m10x/adspraygen@latest
 ```
