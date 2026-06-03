@@ -281,23 +281,18 @@ func processResults(searchResult *ldap.SearchResult, attributes []string, silent
 	}
 
 	// Generate passwords for each mask
-	for maskIndex, mask := range masks {
+	for _, mask := range masks {
 		var file *os.File
 		var file2 *os.File
 		var path string
 		var path2 string
 
 		if outputFile != "" {
-			fileBase := outputFile
-			if len(masks) > 1 {
-				fileBase = buildMaskOutputPath(outputFile, maskIndex+1)
-			}
-
 			if strings.ToLower(outputFormat) == "kerbrute" {
-				file, path = createFile(fileBase, COMBO)
+				file, path = createFile(outputFile, COMBO)
 			} else if strings.ToLower(outputFormat) == "netexec" {
-				file, path = createFile(fileBase, USER)
-				file2, path2 = createFile(fileBase, PASS)
+				file, path = createFile(outputFile, USER)
+				file2, path2 = createFile(outputFile, PASS)
 			}
 		}
 
