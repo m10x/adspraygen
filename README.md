@@ -114,3 +114,4 @@ Escape special characters in patterns with a backslash:
 - `LDAP Result Code 1 "Operations Error": 000004DC: LdapErr: DSID-0C090A5C, comment: In order to perform this operation a successful bind must be completed on the connection.` - Anonymous/Unauthenticated bind is not possible. Specify a password or NTLM hash.
 - `LDAP Result Code 49 "Invalid Credentials": 80090308: LdapErr: DSID-0C090439, comment: AcceptSecurityContext error` - The specified credentials are invalid
 - `LDAP Result Code 49 "Invalid Credentials": 8009030C: LdapErr: DSID-0C0906B5, comment: AcceptSecurityContext error` - Unauthenticated NTLM bind is not possible or specified credentials are not valid.
+- `[Root cause: KDC_Error] KDC_Error: AS Exchange Error: kerberos error response from KDC: KRB Error: (37) KRB_AP_ERR_SKEW Clock skew too great` the user:password combination is valid but the time is not in sync.

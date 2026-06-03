@@ -172,7 +172,7 @@ func runKerbruteLoop(filenameArg, domain string, accountLockoutThreshold, resetA
 
 		pkg.PrintInfo(fmt.Sprintf("Running kerbrute with %s", filename))
 
-		cmdArgs := []string{"bruteforce", "--domain", domain, "--dc", domainController}
+		cmdArgs := []string{"bruteforce", "--domain", domain, "--dc", domainController, "-v"}
 		if strings.TrimSpace(extraFlags) != "" {
 			cmdArgs = append(cmdArgs, strings.Fields(extraFlags)...)
 		}
@@ -272,6 +272,9 @@ func shouldSkipSprayOutputLine(line string) bool {
 	if strings.Contains(cleanLine, "Using KDC(s):") {
 		return true
 	}
+	if strings.Contains(cleanLine, " - Invalid password") {
+		return true
+	}
 	if kdcEndpointRegex.MatchString(cleanLine) {
 		return true
 	}
@@ -281,10 +284,35 @@ func shouldSkipSprayOutputLine(line string) bool {
 
 func extractCredentialFromValidLoginLine(line string) (string, bool) {
 	line = stripANSI(line)
+	// valid login lines look like this:
 	const marker = "VALID LOGIN:"
 	idx := strings.Index(line, marker)
 	if idx == -1 {
-		return "", false
+		// if time is not synced, a valid login may instead be reported as a KRB_AP_ERR_SKEW error
+		const skewMarker = "[!]"
+		const rootCauseMarker = " - [Root cause:"
+
+		if !strings.Contains(line, "KRB_AP_ERR_SKEW") {
+			return "", false
+		}
+
+		skewIdx := strings.Index(line, skewMarker)
+		if skewIdx == -1 {
+			return "", false
+		}
+
+		rootCauseIdx := strings.Index(line[skewIdx+len(skewMarker):], rootCauseMarker)
+		if rootCauseIdx == -1 {
+			return "", false
+		}
+
+		credentialPart := line[skewIdx+len(skewMarker) : skewIdx+len(skewMarker)+rootCauseIdx]
+		credential := strings.TrimSpace(credentialPart)
+		if credential == "" {
+			return "", false
+		}
+
+		return credential, true
 	}
 
 	credential := strings.TrimSpace(stripANSI(line[idx+len(marker):]))
