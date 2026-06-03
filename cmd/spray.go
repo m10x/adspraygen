@@ -290,7 +290,6 @@ func extractCredentialFromValidLoginLine(line string) (string, bool) {
 	if idx == -1 {
 		// if time is not synced, a valid login may instead be reported as a KRB_AP_ERR_SKEW error
 		const skewMarker = "[!]"
-		const rootCauseMarker = " - [Root cause:"
 
 		if !strings.Contains(line, "KRB_AP_ERR_SKEW") {
 			return "", false
@@ -301,14 +300,24 @@ func extractCredentialFromValidLoginLine(line string) (string, bool) {
 			return "", false
 		}
 
-		rootCauseIdx := strings.Index(line[skewIdx+len(skewMarker):], rootCauseMarker)
-		if rootCauseIdx == -1 {
+		rest := strings.TrimSpace(line[skewIdx+len(skewMarker):])
+		if rest == "" {
 			return "", false
 		}
 
-		credentialPart := line[skewIdx+len(skewMarker) : skewIdx+len(skewMarker)+rootCauseIdx]
-		credential := strings.TrimSpace(credentialPart)
+		credential := rest
+		if sepIdx := strings.Index(credential, " - [Root cause:"); sepIdx != -1 {
+			credential = strings.TrimSpace(credential[:sepIdx])
+		} else if sepIdx := strings.Index(credential, " - KRB Error:"); sepIdx != -1 {
+			credential = strings.TrimSpace(credential[:sepIdx])
+		} else if sepIdx := strings.Index(credential, " KDC_Error:"); sepIdx != -1 {
+			credential = strings.TrimSpace(credential[:sepIdx])
+		}
+
 		if credential == "" {
+			return "", false
+		}
+		if !strings.Contains(credential, ":") {
 			return "", false
 		}
 
