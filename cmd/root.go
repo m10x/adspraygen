@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "v1.2.3"
+	version = "v1.2.4"
 	rootCmd = &cobra.Command{
 		Version: version,
 		Use:     "adspraygen",
