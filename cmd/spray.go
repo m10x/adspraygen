@@ -68,6 +68,10 @@ var sprayCmd = &cobra.Command{
 			}()
 		}
 
+		successFilePath := ""
+		if successFile != nil {
+			successFilePath = successFile.Name()
+		}
 		runKerbruteLoop(
 			sprayFile,
 			sprayDomain,
@@ -76,6 +80,7 @@ var sprayCmd = &cobra.Command{
 			sprayDomainController,
 			sprayExtraFlags,
 			successWriter,
+			successFilePath,
 		)
 	},
 }
@@ -150,7 +155,7 @@ func resolveSprayLockoutConfig(cmd *cobra.Command) (int, int) {
 	return threshold, resetMinutes
 }
 
-func runKerbruteLoop(filenameArg, domain string, accountLockoutThreshold, resetAccountLockoutCounter int, domainController, extraFlags string, successWriter *bufio.Writer) {
+func runKerbruteLoop(filenameArg, domain string, accountLockoutThreshold, resetAccountLockoutCounter int, domainController, extraFlags string, successWriter *bufio.Writer, successFilePath string) {
 	counterFile := 0
 	counterKerbrute := 0
 	var successfulSprays []string
@@ -233,6 +238,14 @@ func runKerbruteLoop(filenameArg, domain string, accountLockoutThreshold, resetA
 		matches := <-runMatches
 		successfulSprays = append(successfulSprays, matches...)
 
+		if len(matches) > 0 {
+			fmt.Println()
+			pkg.PrintSuccess(fmt.Sprintf("Valid credentials found in this run (%d):", len(matches)))
+			for _, c := range matches {
+				fmt.Println(" ", c)
+			}
+		}
+
 		counterFile++
 		counterKerbrute++
 		if accountLockoutThreshold > 0 && counterKerbrute == accountLockoutThreshold-1 {
@@ -243,15 +256,19 @@ func runKerbruteLoop(filenameArg, domain string, accountLockoutThreshold, resetA
 		}
 	}
 
+	fmt.Println()
 	if len(successfulSprays) > 0 {
-		fmt.Println()
-		pkg.PrintSuccess("Successful sprays summary")
+		pkg.PrintSuccess(fmt.Sprintf("Password spraying completed. %d valid credential(s) found:", len(successfulSprays)))
 		for _, line := range successfulSprays {
-			fmt.Println(line)
+			fmt.Println(" ", line)
 		}
+		if successFilePath != "" {
+			fmt.Println()
+			pkg.PrintSuccess(fmt.Sprintf("Valid credentials written to: %s", successFilePath))
+		}
+	} else {
+		pkg.PrintSuccess("Password spraying completed. No valid credentials found.")
 	}
-
-	pkg.PrintSuccess("Password spraying completed.")
 }
 
 func shouldSkipSprayOutputLine(line string) bool {
